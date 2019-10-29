@@ -105,6 +105,9 @@ So what we need to do next is build up the right hand side of our linear equatio
 
 ```{r}
 x_1 <- as.numeric(scale(rnorm(n_obs)))
+x_1
+mean(x_1)
+sd(x_1)
 ```
 
 Now, we can use the linear model to generate $y$ values based on our parameters.
@@ -134,21 +137,81 @@ Notice that we get parameter estimates that are very close to the parameters val
 
 1. Replicate what we did above, adding two more (continuous) predictors, and using a data frame.  That is:
     a. Create variables for all of the parameters needed to generate data from the linear model, including a slope parameter for each of three predictors, as well as the number of observations.  Choose different parameter values than those given above.
+```{r}
+beta_00 <- 5
+beta_01 <- 10
+beta_02 <- 25
+beta_03 <- 100
+n_obs2 <- 100
+sigma2 <- 10
+
+```
+    
+    
     b. Generate the predictor data.  For now, generate (theoretically) uncorrelated predictors by generating their samples separately (and independently), and putting them in a data frame.
+```{r}
+x_01 <- as.numeric(scale(rnorm(n_obs2)))
+x_02 <- as.numeric(scale(rnorm(n_obs2)))
+x_03 <- as.numeric(scale(rnorm(n_obs2)))
+
+Practice1_df <- data.frame(x_01, x_02, x_03)
+```
+    
     c. Generate the response data in the same data frame, using the linear model equation.
+```{r}
+Practice1_df$y <- beta_00 + beta_01 * x_01 + beta_02 * x_02 + beta_03 * x_03 + rnorm(n_obs2, mean = 0, sd = sigma2)
+```
+    
     d. Fit a model using `lm()`, and pull out the coefficients from the fitted model, to compare with your "ground truth" values.
+```{r}
+Practice1_model <- lm(y ~ x_01 + x_02 + x_03, data = Practice1_df)
+Practice1_model$coefficients
+```
+"ground true" values were:
+Intercept: 5
+x_01: 10
+x_02: 25
+x_03: 100
+Pretty darn close!
 
 2. Convert your code from #1 into a function, so that you can pass the parameter values as arguments and get back the estimated parameter values in a list or data frame with appropriate names.
+```{r}
+Simulate_ParamterEstimates <-
+  function(beta0, beta1, beta2, beta3, n_obs = 1000, sigma = 1) {
+    df <- data.frame(x_01 <- as.numeric(scale(rnorm(n_obs))),
+                     x_02 <- as.numeric(scale(rnorm(n_obs))),
+                     x_03 <- as.numeric(scale(rnorm(n_obs))))
+    df$y <-
+      beta0 + beta1 * x_01 + beta2 * x_02 + beta3 * x_03 + rnorm(n_obs, mean = 0, sd = sigma)
+    model <- lm(y ~ x_01 + x_02 + x_03, data = df)
+    return(model$coefficients)
+  }
+```
+
 
 3. Use your new function to explore a few different sets of parameter values.  Play around with scenarios where you might not expect the model to get the parameters exactly right, like low $N$ or high error variance.
+```{r}
+Simulate_ParamterEstimates(0, 1, 2, 3, n_obs = 1000000)
+Simulate_ParamterEstimates(0, 1, 2, 3, n_obs = 5)
+Simulate_ParamterEstimates(0, 1, 2, 3, n_obs = 1000, sigma = 100)
+Simulate_ParamterEstimates(0, 1, 2, 3, n_obs = 1000000, sigma = 100)
+```
+
 
 ## Extension Exercise #1
 
 Think about how to generate data that is closer to your personal data.  For now, ignore any repeated-measures or hierarchical structure.  Go through the following questions and think about how you might generate values, or talk about what you don't yet know how to do in order to generate plausible values.  By "plausible", I mean that if your response is something like reaction times in milliseconds, then values mostly from -3 to 3 wouldn't make much sense.
 
+I am interested in the effects of coarticulation in children with CIs: how does vowel context (front vowels vs. back vowels) affect centroid frequency of children's productions of "t" and "k" consonants, and is the effect of vowel context different across groups (children with CIs, children with normal hearing [NH])?
+
 1. How would you generate plausible predictor values?  Do you have any continuous or (at least somewhat) random predictors, or are all of your predictors determined (like a purely experimental design)?  How would you generate experimental predictors/conditions in a data frame?
 
+1. Predictor variables for me would be relatively easy: Vowel context (Front, Back) and Target Consonant (t, k) are both binary predictors, determined by the words elicited during the experiment. Group (CI, NH) is another binary predictor, determined by participants' hearing status.
+
+
 2. What would some plausible parameter values look like to generate your response variable(s) from your predictors?  Are there other things you need to know in order to generate some plausible values?
+
+2a.To generate parameter values, I would look at adult data to look at the mean and range of centroid frequencies for these consonants. I would choose a similar (but slightly higher) mean centroid value for /t/ front vowel contexts (highest centroid), and then a mean centroid value for /k/ in back vowel contexts (lowest centroid). Then I would choose values for /t/ in back vowel contexts and /k/ in front vowel contexts, which would fall in between the other two values. To simulate data for kids with NH, I would choose a relatively low sigma, because their centroid frequencies are probably more reliable, and for kids with CIs, I would chose a higher sigma, because their productions are generally more variable.
 
 ## Repeated simulation
 
@@ -210,17 +273,94 @@ Notice that the mean $\hat{\sigma}$ is only close-ish to our ground truth value,
 
 1. Practice your data wrangling by plotting histograms of the parameter values in `sim_results`.  That is:
     a. Reshape the data so that all of the parameter values are in a single column, with a new column to distinguish the different parameters (`beta_0_hat`, etc.).
+```{r}
+sim_results_Long <- sim_results %>% 
+  pivot_longer(cols = c(beta_0_hat, beta_1_hat, sigma_hat),
+               names_to = "Parameter",
+               values_to = "Estimates")
+```
+    
     b. Use `ggplot` to plot histograms of the parameters, using `facet_wrap(scales = "free")` to separate the parameters into different sub-plots. 
+```{r}
+ggplot(sim_results_Long, aes(Estimates)) + geom_histogram()
+
+ggplot(sim_results_Long, aes(Estimates)) + geom_histogram() +
+  facet_wrap(~ Parameter, scales = "free")
+```
+    
     c. Play around with `binwidth` values.
+```{r}
+ggplot(sim_results_Long, aes(Estimates)) + geom_histogram(binwidth = 1) +
+  facet_wrap(~ Parameter, scales = "free")
+
+ggplot(sim_results_Long, aes(Estimates)) + geom_histogram(binwidth = 0.05) +
+  facet_wrap(~ Parameter, scales = "free")
+
+ggplot(sim_results_Long, aes(Estimates)) + geom_histogram(binwidth = 0.01) +
+  facet_wrap(~ Parameter, scales = "free")
+```
+    
     d. Play around with colors and/or themes.
+```{r}
+ggplot(sim_results_Long, aes(Estimates)) + geom_histogram(aes(fill = Parameter), binwidth = .1) +
+  facet_wrap( ~ Parameter, scales = "free") +
+  scale_fill_manual(values = c("#762a83", "#e7d4e8", "#1b7837")) +
+  theme_bw()
+```
+    
 
 2. Take the loop code chunk above and convert the whole thing to a function, also including your plotting code.  The function should:
     - take the model parameters (including number of observations) plus the number of simulations as arguments
     - should print out the `summary()` of the simulated parameters as a side effect
     - should generate your plot from #1 as a side effect
     - should return the full data frame of `sim_results` as the return value
+```{r}
+SimulateParameters_Plot <-
+  function(n_obs, n_sims, beta0, beta1, sigma) {
+    sim_results <- data.frame(
+      sim = 1:n_sims,
+      beta_0_hat = NA,
+      beta_1_hat = NA,
+      sigma_hat = NA
+    )
+    for (this_sim in 1:n_sims) {
+      if (this_sim %% 1000 == 0) {
+        cat("starting simulation", this_sim, "\n")
+      }
+      this_fit <- sim_simple_lm(n_obs, beta0, beta1, sigma)
+      sim_results[this_sim, 2:4] <- c(this_fit$beta_0_hat,
+                                      this_fit$beta_1_hat,
+                                      this_fit$sigma_hat)
+    }
+    print(summary(sim_results))
+    sim_results_Long <- sim_results %>%
+      pivot_longer(
+        cols = c(beta_0_hat, beta_1_hat, sigma_hat),
+        names_to = "Parameter",
+        values_to = "Estimates"
+      )
+    print(
+      ggplot(sim_results_Long, aes(Estimates)) + geom_histogram(aes(fill = Parameter), binwidth = .1) +
+        facet_wrap(~ Parameter, scales = "free") +
+        scale_fill_manual(values = c("#762a83", "#e7d4e8", "#1b7837")) +
+        theme_bw()
+    )
+    
+    return(sim_results)
+  }
+
+SimulateParameters_Plot(100, 1000, 0, 1, 1)
+```
+    
 
 3. Use your spiffy new function from #2 and play around with some different parameter values (and number of observations), and look at the impact on the distributions of parameter values. For example, look at how the shape of $\sigma$ distributions change with the number of observations.
+
+```{r}
+SimulateParameters_Plot(100, 1000, 0, 1, 1)
+SimulateParameters_Plot(10000, 5000, 0, 1, 1)
+SimulateParameters_Plot(50, 5000, 0, 1, 1)
+```
+
 
 ## Extension Exercise #2
 
@@ -298,18 +438,49 @@ The answer is explained by how I defined the intercept above: *the intercept is 
 ## Practice Exercise #3
 
 1. Using the `sleep` data, create a new variable corresponding to a centered version of the `group` variable, calling it `group.c`.  Hint: how can you transform the `group` variable so that its mean value is 0?
+```{r}
+mysleep$group.c <- ifelse(mysleep$group == "pre", -1, 1)
+```
+
 
 2. Fit a model with the new `group.c` predictor as the only predictor of `extra`.  How is it different and similar to the original model with `group` or `group.num`?
+```{r}
+summary(lm(extra ~ group.c, data = mysleep))
+summary(lm(extra ~ group, data = mysleep))
+```
+The residuals are exactly the same; all the coefficients are different
 
 3. What does the new intercept correspond to?  Calculate that value with another method to demonstrate this interpretation of the coefficient.
+
+The new intercept corresponds to the overall average of "extra" (mean of extra collapsed across conditions)
+```{r}
+mean(mysleep$extra)
+```
+
 
 ## Extension Exercise #3
 
 1. Find (or manufacture) a (2-level) categorical factor in your data. If you have only continuous predictors, create a dichotomized version of that variable (hint: remember that `ifelse()` is your friend here).  Use `summary()` or another method to examine how the values are distributed in your data (i.e., balanced, or not)?
+```{r}
+AcousticData <- read.csv("EH_AcousticData_Updated10.8.csv")
+summary(AcousticData)
+```
 
 2. Fit a simple linear model using this factor as your only predictor.  Compute cell means of your response variable by the levels of your predictor to confirm the interpretation of the model coefficients.
+```{r}
+summary(lm(Centroid.kHz ~ TargetC, data = AcousticData))
+AcousticData %>% group_by(TargetC) %>% 
+  summarise(mean=mean(Centroid.kHz))
+```
+
 
 3. Create a centered numeric version of your factor, and re-fit the model.  Compute the corresponding values in your data to match the coefficient values in this new model.  If they do not match, can you figure out why not?
+```{r}
+AcousticData$TargetC.c <- ifelse(AcousticData$TargetC == "k", -1, 1)
+summary(lm(Centroid.kHz ~ TargetC.c, data = AcousticData))
+mean(AcousticData$Centroid.kHz)
+```
+
 
 ## Factor coding, continued
 
@@ -328,16 +499,62 @@ Think about how this maps to the discussion above about the interpretation of co
 ## Practice Exercise #4
 
 1. Create a local copy of the `iris` data.
+```{r}
+irisLocal <- iris
+```
+
 
 2. Fit a model predicting `Sepal.Width` using the `Species` factor.
+```{r}
+model <- lm(data = irisLocal, formula = Sepal.Width ~ Species)
+summary(model)
+```
+
 
 3. Create dummy variables to re-create the implicit coding from the model in #2, and re-fit the model using those new variables instead of `Species`.  Confirm that the coefficient estimates are identical to those in #2.
+```{r}
+contrasts(irisLocal$Species)
+irisLocal <-
+  irisLocal %>% mutate(
+    veriscolor.dummy = ifelse(Species %in% "versicolor", 1, 0),
+    virginica.dummy = ifelse(Species %in% "virginica", 1, 0)
+  )
+model2 <-
+  lm(data = irisLocal,
+     formula = Sepal.Width ~ veriscolor.dummy + virginica.dummy)
+summary(model2)
+summary(model)
+```
+
 
 4. Use `mutate()` and `relevel()` to create another version of the `Species` factor, where the value of "versicolor" is the reference level.
+```{r}
+irisLocal <-
+  irisLocal %>% mutate(Species2 = relevel(Species, ref = "versicolor"))
+contrasts(irisLocal$Species2)
+```
+
 
 5. Re-fit the model from #2 using the new factor from #4.  Explain the differences between coefficients.
+```{r}
+model3 <- lm(data = irisLocal, formula = Sepal.Width ~ Species2)
+summary(model3)
+```
+Now, the intercept represents the mean value of extra for the versicolor reference category, the first parameter estimate is the mean change in extra from versicolor to setosa, and the second parameter estimate is the mean change in extra from versicolor to verginica
 
 6. Adding only a single new dummy variable, re-fit the same model as #5, using dummy-coded variables instead.  Confirm that the coefficient estimates are identical.
+```{r}
+irisLocal <-
+  irisLocal %>% mutate(
+    setosa.dummy = ifelse(Species %in% "setosa", 1, 0))
+
+model4 <-
+  lm(data = irisLocal,
+     formula = Sepal.Width ~ setosa.dummy + virginica.dummy)
+summary(model4)
+summary(model3)
+```
+Nailed it.
 
 ## Extension Exercise #4
 
